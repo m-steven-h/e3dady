@@ -59,9 +59,8 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const MaterialApp(
-        home: Scaffold(
-          body: Center(child: CircularProgressIndicator()),
-        ),
+        debugShowCheckedModeBanner: false,
+        home: SplashScreen(),
       );
     }
 
@@ -83,6 +82,186 @@ class _MyAppState extends State<MyApp> {
         themeMode: _themeMode,
         fontSize: _fontSize,
         updateFontSize: updateFontSize,
+      ),
+    );
+  }
+}
+
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 2000),
+      vsync: this,
+    );
+
+    _fadeAnimation = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeIn),
+    );
+
+    _scaleAnimation = Tween<double>(begin: 0.5, end: 1).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.elasticOut),
+    );
+
+    _animationController.forward();
+
+    // Navigate to main app after 5 seconds
+    Future.delayed(const Duration(seconds: 5), () {
+      if (mounted) {
+        // The main app will be shown automatically when _isLoading becomes false
+        // This is handled by the parent widget
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.blue.shade900,
+              Colors.purple.shade900,
+              Colors.deepPurple.shade900,
+            ],
+          ),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Animated Logo
+              FadeTransition(
+                opacity: _fadeAnimation,
+                child: ScaleTransition(
+                  scale: _scaleAnimation,
+                  child: Container(
+                    width: 150,
+                    height: 150,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.white,
+                          Colors.blue.shade200,
+                        ],
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.white.withOpacity(0.5),
+                          blurRadius: 30,
+                          spreadRadius: 10,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.church,
+                      size: 80,
+                      color: Colors.blue,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 40),
+
+              // App Name
+              TweenAnimationBuilder<double>(
+                tween: Tween<double>(begin: 0, end: 1),
+                duration: const Duration(milliseconds: 1500),
+                builder: (context, value, child) {
+                  return Transform.translate(
+                    offset: Offset(0, 50 * (1 - value)),
+                    child: Opacity(
+                      opacity: value,
+                      child: Column(
+                        children: [
+                          Text(
+                            "",
+                            style: TextStyle(
+                              fontSize: 48,
+                              fontWeight: FontWeight.w300,
+                              color: Colors.white70,
+                              letterSpacing: 2,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            "اعدادي",
+                            style: TextStyle(
+                              fontSize: 40,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              shadows: [
+                                Shadow(
+                                  blurRadius: 20,
+                                  color: Colors.white.withOpacity(0.5),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+
+              const SizedBox(height: 80),
+
+              // Loading Indicator
+              TweenAnimationBuilder<double>(
+                tween: Tween<double>(begin: 0, end: 1),
+                duration: const Duration(milliseconds: 800),
+                builder: (context, value, child) {
+                  return Opacity(
+                    opacity: value,
+                    child: Column(
+                      children: [
+                        const CircularProgressIndicator(
+                          valueColor:
+                              AlwaysStoppedAnimation<Color>(Colors.white),
+                          strokeWidth: 3,
+                        ),
+                        const SizedBox(height: 20),
+                        Text(
+                          "جاري التحميل...",
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.white70,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -123,157 +302,211 @@ class PrepPage extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                TweenAnimationBuilder<double>(
-                  tween: Tween<double>(begin: 0, end: 1),
-                  duration: const Duration(milliseconds: 800),
-                  builder: (context, value, child) {
-                    return Transform.scale(
-                      scale: value,
-                      child: child,
-                    );
-                  },
-                  child: Text(
-                    "إعدادي",
-                    style: TextStyle(
-                      color: isDark ? Colors.white : Colors.black,
-                      fontSize: 48,
-                      fontWeight: FontWeight.bold,
-                      shadows: [
-                        Shadow(
-                          blurRadius: 10,
-                          color: isDark ? Colors.white24 : Colors.black26,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 40),
-                Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(30),
-                    boxShadow: [
-                      BoxShadow(
-                        color: isDark ? Colors.white12 : Colors.black12,
-                        blurRadius: 10,
-                        offset: const Offset(0, 5),
-                      ),
-                    ],
-                  ),
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor:
-                          isDark ? Colors.grey[850] : Colors.grey[200],
-                      foregroundColor: isDark ? Colors.white : Colors.black,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 40,
-                        vertical: 15,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                    ),
-                    onPressed: () {
-                      showModalBottomSheet(
-                        context: context,
-                        backgroundColor:
-                            isDark ? Colors.grey[900] : Colors.white,
-                        shape: const RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.vertical(top: Radius.circular(20)),
-                        ),
-                        builder: (context) => SettingsSheet(
-                          isDark: isDark,
-                          fontSize: fontSize,
-                          updateFontSize: updateFontSize,
-                          toggleTheme: toggleTheme,
-                        ),
-                      );
-                    },
-                    icon: Icon(
-                      Icons.settings,
-                      size: 28,
-                      color: isDark ? Colors.white : Colors.black,
-                    ),
-                    label: Text(
-                      "الإعدادات",
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? Colors.white : Colors.black,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 30),
+                // Removed the animated icon
+                const SizedBox(height: 20),
+
                 TweenAnimationBuilder<double>(
                   tween: Tween<double>(begin: 0, end: 1),
                   duration: const Duration(milliseconds: 800),
                   builder: (context, value, child) {
                     return Transform.translate(
-                      offset: Offset(0, 50 * (1 - value)),
+                      offset: Offset(0, 30 * (1 - value)),
                       child: Opacity(
                         opacity: value,
-                        child: child,
+                        child: Column(
+                          children: [
+                            Text(
+                              "خدمة",
+                              style: TextStyle(
+                                fontSize: 56,
+                                fontWeight: FontWeight.w300,
+                                color: isDark ? Colors.white70 : Colors.black54,
+                                letterSpacing: 2,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              "اعدادي",
+                              style: TextStyle(
+                                fontSize: 48,
+                                fontWeight: FontWeight.bold,
+                                color: isDark ? Colors.white : Colors.black,
+                                shadows: [
+                                  Shadow(
+                                    blurRadius: 20,
+                                    color: isDark
+                                        ? Colors.white24
+                                        : Colors.blue.shade200,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     );
                   },
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.blue.withOpacity(0.5),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
-                    ),
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 80,
-                          vertical: 20,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                      ),
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          PageRouteBuilder(
-                            pageBuilder:
-                                (context, animation, secondaryAnimation) =>
-                                    PrayerPage(
-                              isDark: isDark,
-                              fontSize: fontSize,
+                ),
+                const SizedBox(height: 60),
+                Column(
+                  children: [
+                    TweenAnimationBuilder<double>(
+                      tween: Tween<double>(begin: 0, end: 1),
+                      duration: const Duration(milliseconds: 800),
+                      builder: (context, value, child) {
+                        return Transform.translate(
+                          offset: Offset(0, 50 * (1 - value)),
+                          child: Opacity(
+                            opacity: value,
+                            child: Container(
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(25),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.blue.withOpacity(0.4),
+                                    blurRadius: 20,
+                                    offset: const Offset(0, 10),
+                                  ),
+                                ],
+                              ),
+                              child: ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blue,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 18,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(25),
+                                  ),
+                                  elevation: 0,
+                                ),
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    PageRouteBuilder(
+                                      pageBuilder: (context, animation,
+                                              secondaryAnimation) =>
+                                          PrayerPage(
+                                        isDark: isDark,
+                                        fontSize: fontSize,
+                                        updateFontSize: updateFontSize,
+                                      ),
+                                      transitionsBuilder: (context, animation,
+                                          secondaryAnimation, child) {
+                                        const begin = Offset(1.0, 0.0);
+                                        const end = Offset.zero;
+                                        const curve = Curves.easeInOutCubic;
+                                        var tween = Tween(
+                                                begin: begin, end: end)
+                                            .chain(CurveTween(curve: curve));
+                                        return SlideTransition(
+                                          position: animation.drive(tween),
+                                          child: child,
+                                        );
+                                      },
+                                      transitionDuration:
+                                          const Duration(milliseconds: 500),
+                                    ),
+                                  );
+                                },
+                                child: const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.play_arrow, size: 28),
+                                    SizedBox(width: 12),
+                                    Text(
+                                      "ابدأ الصلاة",
+                                      style: TextStyle(
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
-                            transitionsBuilder: (context, animation,
-                                secondaryAnimation, child) {
-                              const begin = Offset(1.0, 0.0);
-                              const end = Offset.zero;
-                              const curve = Curves.easeInOut;
-                              var tween = Tween(begin: begin, end: end)
-                                  .chain(CurveTween(curve: curve));
-                              return SlideTransition(
-                                position: animation.drive(tween),
-                                child: child,
-                              );
-                            },
                           ),
                         );
                       },
-                      child: const Text(
-                        "ابدأ الصلاة",
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
                     ),
-                  ),
+                    const SizedBox(height: 20),
+                    TweenAnimationBuilder<double>(
+                      tween: Tween<double>(begin: 0, end: 1),
+                      duration: const Duration(milliseconds: 800),
+                      builder: (context, value, child) {
+                        return Transform.translate(
+                          offset: Offset(0, 70 * (1 - value)),
+                          child: Opacity(
+                            opacity: value,
+                            child: Container(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor:
+                                      isDark ? Colors.white : Colors.black,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 18,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(25),
+                                  ),
+                                  side: BorderSide(
+                                    color: isDark
+                                        ? Colors.white24
+                                        : Colors.black26,
+                                    width: 1.5,
+                                  ),
+                                ),
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    PageRouteBuilder(
+                                      pageBuilder: (context, animation,
+                                              secondaryAnimation) =>
+                                          SettingsPage(
+                                        isDark: isDark,
+                                        fontSize: fontSize,
+                                        toggleTheme: toggleTheme,
+                                        updateFontSize: updateFontSize,
+                                      ),
+                                      transitionsBuilder: (context, animation,
+                                          secondaryAnimation, child) {
+                                        const begin = Offset(0.0, 1.0);
+                                        const end = Offset.zero;
+                                        const curve = Curves.easeInOutCubic;
+                                        var tween = Tween(
+                                                begin: begin, end: end)
+                                            .chain(CurveTween(curve: curve));
+                                        return SlideTransition(
+                                          position: animation.drive(tween),
+                                          child: child,
+                                        );
+                                      },
+                                      transitionDuration:
+                                          const Duration(milliseconds: 500),
+                                    ),
+                                  );
+                                },
+                                icon: Icon(
+                                  Icons.settings_outlined,
+                                  size: 26,
+                                ),
+                                label: const Text(
+                                  "الإعدادات",
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -284,25 +517,25 @@ class PrepPage extends StatelessWidget {
   }
 }
 
-class SettingsSheet extends StatefulWidget {
+class SettingsPage extends StatefulWidget {
   final bool isDark;
   final double fontSize;
-  final Function(double) updateFontSize;
   final VoidCallback toggleTheme;
+  final Function(double) updateFontSize;
 
-  const SettingsSheet({
+  const SettingsPage({
     super.key,
     required this.isDark,
     required this.fontSize,
-    required this.updateFontSize,
     required this.toggleTheme,
+    required this.updateFontSize,
   });
 
   @override
-  State<SettingsSheet> createState() => _SettingsSheetState();
+  State<SettingsPage> createState() => _SettingsPageState();
 }
 
-class _SettingsSheetState extends State<SettingsSheet> {
+class _SettingsPageState extends State<SettingsPage> {
   late double _currentFontSize;
 
   @override
@@ -313,177 +546,302 @@ class _SettingsSheetState extends State<SettingsSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: widget.isDark ? Colors.white38 : Colors.black38,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            "الإعدادات",
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: widget.isDark ? Colors.white : Colors.black,
-            ),
-          ),
-          const SizedBox(height: 30),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: widget.isDark ? Colors.grey[800] : Colors.grey[100],
-              borderRadius: BorderRadius.circular(15),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  "المظهر",
-                  style: TextStyle(
-                    fontSize: 18,
-                    color: widget.isDark ? Colors.white : Colors.black,
-                  ),
-                ),
-                Switch(
-                  value: !widget.isDark,
-                  onChanged: (_) {
-                    widget.toggleTheme();
-                    Navigator.pop(context);
-                  },
-                  activeColor: Colors.blue,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: widget.isDark ? Colors.grey[800] : Colors.grey[100],
-              borderRadius: BorderRadius.circular(15),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.text_fields,
-                        color: widget.isDark ? Colors.white70 : Colors.black54),
-                    const SizedBox(width: 8),
-                    Text(
-                      "حجم الخط",
-                      style: TextStyle(
-                        fontSize: 18,
-                        color: widget.isDark ? Colors.white : Colors.black,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Icon(Icons.format_size,
-                        size: 20,
-                        color: widget.isDark ? Colors.white70 : Colors.black54),
-                    Expanded(
-                      child: Slider(
-                        value: _currentFontSize,
-                        min: 20,
-                        max: 50,
-                        divisions: 30,
-                        onChanged: (value) {
-                          setState(() {
-                            _currentFontSize = value;
-                          });
-                          widget.updateFontSize(value);
-                        },
-                        activeColor: Colors.blue,
-                        thumbColor: Colors.blue,
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.blue,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        "${_currentFontSize.round()}px",
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
+    return Scaffold(
+      backgroundColor: widget.isDark ? Colors.black : Colors.white,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Row(
+                children: [
+                  MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.pop(context);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: widget.isDark
+                              ? Colors.grey[800]
+                              : Colors.grey[100],
+                          borderRadius: BorderRadius.circular(15),
                         ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 15),
-                Container(
-                  padding: const EdgeInsets.all(15),
-                  decoration: BoxDecoration(
-                    color: widget.isDark ? Colors.grey[700] : Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Colors.blue.withOpacity(0.3),
-                      width: 1,
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        "معاينة النص",
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.blue,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        "هذا مثال لتغيير حجم الخط",
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: _currentFontSize * 0.6,
+                        child: Icon(
+                          Icons.arrow_forward_ios,
                           color: widget.isDark ? Colors.white : Colors.black,
-                          fontWeight: FontWeight.w500,
+                          size: 20,
                         ),
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              onPressed: () => Navigator.pop(context),
-              child: const Text(
-                "إغلاق",
-                style: TextStyle(fontSize: 16, color: Colors.white),
+                  const Spacer(),
+                  Text(
+                    "الإعدادات",
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: widget.isDark ? Colors.white : Colors.black,
+                    ),
+                  ),
+                  const Spacer(),
+                  const SizedBox(width: 50),
+                ],
               ),
             ),
-          ),
-          const SizedBox(height: 20),
-        ],
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: widget.isDark
+                              ? [Colors.grey[900]!, Colors.grey[850]!]
+                              : [Colors.white, Colors.grey[50]!],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(25),
+                        boxShadow: [
+                          BoxShadow(
+                            color:
+                                widget.isDark ? Colors.white10 : Colors.black12,
+                            blurRadius: 10,
+                            offset: const Offset(0, 5),
+                          ),
+                        ],
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(25),
+                          onTap: () {
+                            widget.toggleTheme();
+                            Navigator.pop(context);
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: widget.isDark
+                                        ? Colors.grey[800]
+                                        : Colors.grey[200],
+                                    borderRadius: BorderRadius.circular(15),
+                                  ),
+                                  child: Icon(
+                                    widget.isDark
+                                        ? Icons.dark_mode
+                                        : Icons.light_mode,
+                                    color: widget.isDark
+                                        ? Colors.amber
+                                        : Colors.blue,
+                                    size: 28,
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        "المظهر",
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w600,
+                                          color: widget.isDark
+                                              ? Colors.white
+                                              : Colors.black,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        widget.isDark
+                                            ? "الوضع الليلي"
+                                            : "الوضع النهاري",
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: widget.isDark
+                                              ? Colors.white70
+                                              : Colors.black54,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Switch(
+                                  value: !widget.isDark,
+                                  onChanged: (_) {
+                                    widget.toggleTheme();
+                                    Navigator.pop(context);
+                                  },
+                                  activeColor: Colors.blue,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: widget.isDark
+                              ? [Colors.grey[900]!, Colors.grey[850]!]
+                              : [Colors.white, Colors.grey[50]!],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(25),
+                        boxShadow: [
+                          BoxShadow(
+                            color:
+                                widget.isDark ? Colors.white10 : Colors.black12,
+                            blurRadius: 10,
+                            offset: const Offset(0, 5),
+                          ),
+                        ],
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: widget.isDark
+                                        ? Colors.grey[800]
+                                        : Colors.grey[200],
+                                    borderRadius: BorderRadius.circular(15),
+                                  ),
+                                  child: Icon(
+                                    Icons.text_fields,
+                                    color: Colors.blue,
+                                    size: 28,
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        "حجم الخط",
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w600,
+                                          color: widget.isDark
+                                              ? Colors.white
+                                              : Colors.black,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        "تحكم في حجم النص في الصلوات",
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: widget.isDark
+                                              ? Colors.white70
+                                              : Colors.black54,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    "${_currentFontSize.round()}px",
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 20),
+                            Slider(
+                              value: _currentFontSize,
+                              min: 20,
+                              max: 50,
+                              divisions: 30,
+                              onChanged: (value) {
+                                setState(() {
+                                  _currentFontSize = value;
+                                });
+                                widget.updateFontSize(value);
+                              },
+                              activeColor: Colors.blue,
+                              thumbColor: Colors.blue,
+                            ),
+                            const SizedBox(height: 20),
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: widget.isDark
+                                    ? Colors.grey[800]
+                                    : Colors.grey[100],
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: Colors.blue.withOpacity(0.3),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Column(
+                                children: [
+                                  Text(
+                                    "معاينة النص",
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.blue,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    "هذا مثال لتغيير حجم الخط",
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: _currentFontSize * 0.6,
+                                      color: widget.isDark
+                                          ? Colors.white
+                                          : Colors.black,
+                                      fontWeight: FontWeight.w500,
+                                      height: 1.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -492,17 +850,27 @@ class _SettingsSheetState extends State<SettingsSheet> {
 class PrayerPage extends StatefulWidget {
   final bool isDark;
   final double fontSize;
+  final Function(double) updateFontSize;
 
-  const PrayerPage({super.key, required this.isDark, required this.fontSize});
+  const PrayerPage({
+    super.key,
+    required this.isDark,
+    required this.fontSize,
+    required this.updateFontSize,
+  });
 
   @override
   State<PrayerPage> createState() => _PrayerPageState();
 }
 
-class _PrayerPageState extends State<PrayerPage> {
-  late PageController _controller;
+class _PrayerPageState extends State<PrayerPage>
+    with SingleTickerProviderStateMixin {
+  late PageController _pageController;
   int currentIndex = 0;
   final FocusNode _focusNode = FocusNode();
+  bool _showList = false;
+  late AnimationController _slideController;
+  late Animation<Offset> _slideAnimation;
 
   final List<Map<String, String>> prayers = [
     {
@@ -513,7 +881,7 @@ class _PrayerPageState extends State<PrayerPage> {
     {
       'title': 'صلاة الشكر',
       'body':
-          'آمين. فلنشكر صانع الخيرات الرحوم الله، أبا ربنا وإلهنا ومخلصنا يسوع المسيح. لأنه سترنا وأعاننا، وحفظنا، وقبلنا إليه، وأشفق علينا، وعضدنا، وأتى بنا إلى هذه الساعة. هو أيضًا فلنسأله أن يحفظنا في هذا اليوم المقدس وكل أيام حياتنا بكل سلام، الضابط الكل الرب إلهنا. أيها السيد الرب الإله ضابط الكل أبو ربنا وإلهنا ومخلصنا يسوع المسيح، نشكرك على كل حال، ومن أجل كل حال، وفى كل حال، لأنك سترتنا وأعنتنا وحفظتنا وقبلتنا إليك، وأشفقت علينا وعضدتنا وأتيت بنا إلى هذه الساعة. من أجل هذا نسأل ونطلب من صلاحك يا محب البشر، امنحنا أن نكمل هذا اليوم المقدس وكل أيام حياتنا بكل سلام مع خوفك. كل حسد وكل تجربة وكل فعل الشيطان ومؤامرة الناس الأشرار، وقيام الأعداء الخفيين والظاهرين، انزعها عنا وعن سائر شعبك وعن موضعك المقدس هذا. أما الصالحات والنافعات فارزقنا إياها، لأنك أنت الذي أعطيتنا السلطان أن ندوس الحيات والعقارب وكل قوة العدو ولا تدخلنا في تجربة، لكن نجنا من الشرير. بالنعمة والرأفات ومحبة البشر، اللواتي لابنك الوحيد ربنا وإلهنا ومخلصنا يسوع المسيح. هذا الذي من قبله المجد والإكرام والعزة والسجود تليق بك معه ومع الروح القدس المحيى المساوي لك الآن وكل أوان وإلى دهر الدهور.'
+          ' فلنشكر صانع الخيرات الرحوم الله، أبا ربنا وإلهنا ومخلصنا يسوع المسيح. لأنه سترنا وأعاننا، وحفظنا، وقبلنا إليه، وأشفق علينا، وعضدنا، وأتى بنا إلى هذه الساعة. هو أيضًا فلنسأله أن يحفظنا في هذا اليوم المقدس وكل أيام حياتنا بكل سلام، الضابط الكل الرب إلهنا. أيها السيد الرب الإله ضابط الكل أبو ربنا وإلهنا ومخلصنا يسوع المسيح، نشكرك على كل حال، ومن أجل كل حال، وفى كل حال، لأنك سترتنا وأعنتنا وحفظتنا وقبلتنا إليك، وأشفقت علينا وعضدتنا وأتيت بنا إلى هذه الساعة. من أجل هذا نسأل ونطلب من صلاحك يا محب البشر، امنحنا أن نكمل هذا اليوم المقدس وكل أيام حياتنا بكل سلام مع خوفك. كل حسد وكل تجربة وكل فعل الشيطان ومؤامرة الناس الأشرار، وقيام الأعداء الخفيين والظاهرين، انزعها عنا وعن سائر شعبك وعن موضعك المقدس هذا. أما الصالحات والنافعات فارزقنا إياها، لأنك أنت الذي أعطيتنا السلطان أن ندوس الحيات والعقارب وكل قوة العدو ولا تدخلنا في تجربة، لكن نجنا من الشرير. بالنعمة والرأفات ومحبة البشر، اللواتي لابنك الوحيد ربنا وإلهنا ومخلصنا يسوع المسيح. هذا الذي من قبله المجد والإكرام والعزة والسجود تليق بك معه ومع الروح القدس المحيى المساوي لك الآن وكل أوان وإلى دهر الدهور.امين.'
     },
     {
       'title': 'المزمور الخمسون',
@@ -635,18 +1003,53 @@ class _PrayerPageState extends State<PrayerPage> {
   @override
   void initState() {
     super.initState();
-    _controller = PageController();
+    _pageController = PageController();
+    _slideController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, -1),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _slideController,
+      curve: Curves.easeInOut,
+    ));
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _pageController.dispose();
+    _slideController.dispose();
     super.dispose();
+  }
+
+  void _toggleList() {
+    setState(() {
+      _showList = !_showList;
+      if (_showList) {
+        _slideController.forward();
+      } else {
+        _slideController.reverse();
+      }
+    });
+  }
+
+  void _selectPrayer(int index) {
+    setState(() {
+      currentIndex = index;
+      _toggleList();
+    });
+    _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOutCubic,
+    );
   }
 
   void _nextPage() {
     if (currentIndex < prayers.length - 1) {
-      _controller.nextPage(
+      _pageController.nextPage(
         duration: const Duration(milliseconds: 400),
         curve: Curves.easeInOutCubic,
       );
@@ -655,7 +1058,7 @@ class _PrayerPageState extends State<PrayerPage> {
 
   void _previousPage() {
     if (currentIndex > 0) {
-      _controller.previousPage(
+      _pageController.previousPage(
         duration: const Duration(milliseconds: 400),
         curve: Curves.easeInOutCubic,
       );
@@ -684,259 +1087,295 @@ class _PrayerPageState extends State<PrayerPage> {
         autofocus: true,
         onKeyEvent: _handleKey,
         child: SafeArea(
-          child: Column(
+          child: Stack(
             children: [
-              // Header with Page Indicator and Back Button
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                child: Row(
-                  children: [
-                    const Spacer(),
-                    // Page Indicator
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8),
-                      decoration: BoxDecoration(
-                        color:
-                            widget.isDark ? Colors.grey[800] : Colors.grey[200],
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        "${currentIndex + 1} / ${prayers.length}",
-                        style: TextStyle(
-                          color: textColor,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                    const Spacer(),
-                    // Back Button (يمين)
-                    MouseRegion(
-                      cursor: SystemMouseCursors.click,
-                      child: GestureDetector(
-                        onTap: () {
-                          Navigator.pop(context);
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: widget.isDark
-                                ? Colors.grey[800]
-                                : Colors.grey[200],
-                            borderRadius: BorderRadius.circular(30),
-                          ),
-                          child: Icon(
-                            Icons.arrow_back_ios,
-                            color: textColor,
-                            size: 24,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              Expanded(
-                child: PageView.builder(
-                  controller: _controller,
-                  reverse: true,
-                  itemCount: prayers.length,
-                  onPageChanged: (index) {
-                    setState(() {
-                      currentIndex = index;
-                    });
-                  },
-                  itemBuilder: (context, index) {
-                    final prayer = prayers[index];
-                    return Column(
+              Column(
+                children: [
+                  // Top Bar with Title and Back Button
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 16),
+                    child: Row(
                       children: [
-                        const SizedBox(height: 20),
-                        // Title
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 20, vertical: 12),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: widget.isDark
-                                  ? [Colors.blue.shade900, Colors.blue.shade800]
-                                  : [Colors.blue.shade100, Colors.blue.shade50],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(30),
-                          ),
-                          child: Text(
-                            prayer["title"]!,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: widget.isDark
-                                  ? Colors.white
-                                  : Colors.blue.shade900,
-                              fontSize: widget.fontSize * 0.8,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.all(20),
-                            child: SingleChildScrollView(
-                              physics: const BouncingScrollPhysics(),
-                              child: Text(
-                                prayer["body"]!,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: textColor,
-                                  fontSize: widget.fontSize,
-                                  height: 1.8,
-                                ),
+                        const Spacer(),
+                        // Back Button (Right Side)
+                        MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: GestureDetector(
+                            onTap: () => Navigator.pop(context),
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: widget.isDark
+                                    ? Colors.grey[800]
+                                    : Colors.grey[200],
+                                borderRadius: BorderRadius.circular(15),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: widget.isDark
+                                        ? Colors.white10
+                                        : Colors.black12,
+                                    blurRadius: 5,
+                                  ),
+                                ],
+                              ),
+                              child: Icon(
+                                Icons.arrow_forward_ios,
+                                color: textColor,
+                                size: 20,
                               ),
                             ),
                           ),
                         ),
                       ],
-                    );
-                  },
-                ),
-              ),
+                    ),
+                  ),
 
-              const SizedBox(height: 10),
-
-              // Navigation Buttons with Hover Effect
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Next Button (شمال)
-                  if (currentIndex < prayers.length - 1)
-                    MouseRegion(
-                      cursor: SystemMouseCursors.click,
-                      child: StatefulBuilder(
-                        builder: (context, setState) {
-                          bool isHovered = false;
-                          return MouseRegion(
-                            onEnter: (_) => setState(() => isHovered = true),
-                            onExit: (_) => setState(() => isHovered = false),
-                            child: GestureDetector(
-                              onTap: _nextPage,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 20, vertical: 12),
-                                decoration: BoxDecoration(
-                                  color: isHovered
-                                      ? (widget.isDark
-                                          ? Colors.grey[700]
-                                          : Colors.grey[300])
-                                      : (widget.isDark
-                                          ? Colors.grey[850]
-                                          : Colors.white),
-                                  borderRadius: BorderRadius.circular(30),
-                                  boxShadow: isHovered
-                                      ? [
-                                          BoxShadow(
-                                            color: Colors.blue.withOpacity(0.3),
-                                            blurRadius: 8,
-                                            offset: const Offset(0, 2),
-                                          )
-                                        ]
-                                      : null,
-                                ),
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      Icons.arrow_back,
-                                      color:
-                                          isHovered ? Colors.blue : Colors.blue,
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      "التالي",
-                                      style: TextStyle(
-                                        color: isHovered
-                                            ? Colors.blue
-                                            : Colors.blue,
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
+                  // Current Prayer Title with Dropdown Button
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 16),
+                    child: GestureDetector(
+                      onTap: _toggleList,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: widget.isDark
+                              ? Colors.grey[850]
+                              : Colors.grey[100],
+                          borderRadius: BorderRadius.circular(30),
+                          boxShadow: [
+                            BoxShadow(
+                              color: widget.isDark
+                                  ? Colors.white10
+                                  : Colors.black12,
+                              blurRadius: 10,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                prayers[currentIndex]['title']!,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: textColor,
+                                  fontSize: widget.fontSize * 0.7,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1,
                                 ),
                               ),
                             ),
-                          );
-                        },
-                      ),
-                    ),
-
-                  // Previous Button (يمين)
-                  if (currentIndex > 0)
-                    MouseRegion(
-                      cursor: SystemMouseCursors.click,
-                      child: StatefulBuilder(
-                        builder: (context, setState) {
-                          bool isHovered = false;
-                          return MouseRegion(
-                            onEnter: (_) => setState(() => isHovered = true),
-                            onExit: (_) => setState(() => isHovered = false),
-                            child: GestureDetector(
-                              onTap: _previousPage,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 20, vertical: 12),
-                                decoration: BoxDecoration(
-                                  color: isHovered
-                                      ? (widget.isDark
-                                          ? Colors.grey[700]
-                                          : Colors.grey[300])
-                                      : (widget.isDark
-                                          ? Colors.grey[850]
-                                          : Colors.white),
-                                  borderRadius: BorderRadius.circular(30),
-                                  boxShadow: isHovered
-                                      ? [
-                                          BoxShadow(
-                                            color: Colors.blue.withOpacity(0.3),
-                                            blurRadius: 8,
-                                            offset: const Offset(0, 2),
-                                          )
-                                        ]
-                                      : null,
-                                ),
-                                child: Row(
-                                  children: [
-                                    Text(
-                                      "السابق",
-                                      style: TextStyle(
-                                        color: isHovered
-                                            ? Colors.blue
-                                            : Colors.blue,
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Icon(
-                                      Icons.arrow_forward,
-                                      color:
-                                          isHovered ? Colors.blue : Colors.blue,
-                                      size: 20,
-                                    ),
-                                  ],
-                                ),
-                              ),
+                            Icon(
+                              _showList
+                                  ? Icons.arrow_drop_up
+                                  : Icons.arrow_drop_down,
+                              color: textColor,
+                              size: 28,
                             ),
-                          );
-                        },
+                          ],
+                        ),
                       ),
                     ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  // PageView for Prayer Content (without container/card)
+                  Expanded(
+                    child: PageView.builder(
+                      controller: _pageController,
+                      reverse: true,
+                      itemCount: prayers.length,
+                      onPageChanged: (index) {
+                        setState(() {
+                          currentIndex = index;
+                        });
+                      },
+                      itemBuilder: (context, index) {
+                        final prayer = prayers[index];
+                        return SingleChildScrollView(
+                          physics: const BouncingScrollPhysics(),
+                          padding: const EdgeInsets.all(24),
+                          child: TweenAnimationBuilder<double>(
+                            key: ValueKey(currentIndex),
+                            tween: Tween<double>(begin: 0, end: 1),
+                            duration: const Duration(milliseconds: 500),
+                            curve: Curves.easeOutCubic,
+                            builder: (context, value, child) {
+                              return Transform.translate(
+                                offset: Offset(0, 20 * (1 - value)),
+                                child: Opacity(
+                                  opacity: value,
+                                  child: Text(
+                                    prayer['body']!,
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: textColor,
+                                      fontSize: widget.fontSize,
+                                      height: 1.8,
+                                      letterSpacing: 0.8,
+                                      fontWeight: FontWeight.w400,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
                 ],
               ),
 
-              const SizedBox(height: 20),
+              // Dropdown List
+              if (_showList)
+                GestureDetector(
+                  onTap: _toggleList,
+                  child: Container(
+                    color: Colors.black54,
+                    child: Center(
+                      child: SlideTransition(
+                        position: _slideAnimation,
+                        child: Material(
+                          color: Colors.transparent,
+                          child: Container(
+                            margin: const EdgeInsets.symmetric(
+                                horizontal: 40, vertical: 80),
+                            decoration: BoxDecoration(
+                              color: widget.isDark
+                                  ? Colors.grey[900]
+                                  : Colors.white,
+                              borderRadius: BorderRadius.circular(25),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black26,
+                                  blurRadius: 20,
+                                  offset: const Offset(0, 10),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(20),
+                                  decoration: BoxDecoration(
+                                    color: widget.isDark
+                                        ? Colors.grey[800]
+                                        : Colors.grey[100],
+                                    borderRadius: const BorderRadius.only(
+                                      topLeft: Radius.circular(25),
+                                      topRight: Radius.circular(25),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.menu_book,
+                                        color: textColor,
+                                        size: 28,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Text(
+                                        "قائمة الصلوات",
+                                        style: TextStyle(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.bold,
+                                          color: textColor,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Expanded(
+                                  child: ListView.builder(
+                                    itemCount: prayers.length,
+                                    itemBuilder: (context, index) {
+                                      final isSelected = currentIndex == index;
+                                      return InkWell(
+                                        onTap: () => _selectPrayer(index),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 20, vertical: 16),
+                                          decoration: BoxDecoration(
+                                            color: isSelected
+                                                ? (widget.isDark
+                                                    ? Colors.blue
+                                                        .withOpacity(0.2)
+                                                    : Colors.blue.shade50)
+                                                : null,
+                                            border: Border(
+                                              bottom: BorderSide(
+                                                color: widget.isDark
+                                                    ? Colors.grey[800]!
+                                                    : Colors.grey[200]!,
+                                              ),
+                                            ),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              if (isSelected)
+                                                Icon(
+                                                  Icons.check_circle,
+                                                  color: Colors.blue,
+                                                  size: 20,
+                                                )
+                                              else
+                                                const SizedBox(width: 20),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: Text(
+                                                  prayers[index]['title']!,
+                                                  style: TextStyle(
+                                                    fontSize: 16,
+                                                    color: textColor,
+                                                    fontWeight: isSelected
+                                                        ? FontWeight.bold
+                                                        : FontWeight.normal,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.all(16),
+                                  child: ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.blue,
+                                      foregroundColor: Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(15),
+                                      ),
+                                    ),
+                                    onPressed: _toggleList,
+                                    child: const Text(
+                                      "إغلاق",
+                                      style: TextStyle(fontSize: 16),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
