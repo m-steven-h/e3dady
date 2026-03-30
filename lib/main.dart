@@ -1,8 +1,146 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:workmanager/workmanager.dart';
+import 'package:timezone/timezone.dart' as tz;
+import 'package:timezone/data/latest.dart' as tz;
 
-void main() {
+// ✅ دالة الخلفية للإشعارات
+@pragma('vm:entry-point')
+void callbackDispatcher() {
+  Workmanager().executeTask((task, inputData) async {
+    if (task == "scheduleWeeklyPrayerNotification") {
+      await scheduleWeeklyNotification();
+    }
+    return Future.value(true);
+  });
+}
+
+// ✅ دالة عرض الإشعار
+Future<void> showWeeklyNotification() async {
+  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+      FlutterLocalNotificationsPlugin();
+
+  final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+    'prayer_channel',
+    'تذكير الصلاة',
+    channelDescription: 'تذكير أسبوعي للصلاة',
+    importance: Importance.high,
+    priority: Priority.high,
+    sound: RawResourceAndroidNotificationSound('notification_sound'),
+    enableVibration: true,
+    playSound: true,
+  );
+
+  const NotificationDetails platformDetails =
+      NotificationDetails(android: androidDetails);
+
+  await flutterLocalNotificationsPlugin.show(
+    0,
+    '🕊️ تذكير بالصلاة',
+    'حان وقت الصلاة - يوم الجمعة الساعة 3:30 عصراً',
+    platformDetails,
+  );
+}
+
+// ✅ دالة جدولة الإشعار الأسبوعي
+Future<void> scheduleWeeklyNotification() async {
+  tz.initializeTimeZones();
+  final location = tz.getLocation('Africa/Cairo');
+
+  final now = tz.TZDateTime.now(location);
+  
+  DateTime nextFriday = now.toLocal();
+  int daysUntilFriday = (DateTime.friday - now.weekday) % 7;
+  if (daysUntilFriday == 0 && now.hour >= 15 && now.minute >= 30) {
+    daysUntilFriday = 7;
+  }
+  nextFriday = nextFriday.add(Duration(days: daysUntilFriday));
+  
+  final tz.TZDateTime scheduledDate = tz.TZDateTime(
+    location,
+    nextFriday.year,
+    nextFriday.month,
+    nextFriday.day,
+    15,
+    30,
+  );
+
+  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+      FlutterLocalNotificationsPlugin();
+
+  final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+    'prayer_channel',
+    'تذكير الصلاة',
+    channelDescription: 'تذكير أسبوعي للصلاة',
+    importance: Importance.high,
+    priority: Priority.high,
+    sound: RawResourceAndroidNotificationSound('notification_sound'),
+    enableVibration: true,
+    playSound: true,
+  );
+
+  await flutterLocalNotificationsPlugin.zonedSchedule(
+    1,
+    '🕊️ تذكير بالصلاة',
+    'حان وقت الصلاة - يوم الجمعة الساعة 3:30 عصراً',
+    scheduledDate,
+    NotificationDetails(android: androidDetails),
+    androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+    matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
+    uiLocalNotificationDateInterpretation:
+        UILocalNotificationDateInterpretation.absoluteTime,
+  );
+}
+
+// ✅ دالة طلب إذن الإشعارات
+Future<void> requestNotificationPermission() async {
+  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+      FlutterLocalNotificationsPlugin();
+  
+  final bool? isEnabled = await flutterLocalNotificationsPlugin
+      .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>()
+      ?.areNotificationsEnabled();
+  
+  if (isEnabled == false) {
+    await flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.requestNotificationsPermission();
+  }
+}
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // تهيئة الإشعارات
+  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+      FlutterLocalNotificationsPlugin();
+
+  const AndroidInitializationSettings androidSettings =
+      AndroidInitializationSettings('@mipmap/ic_launcher');
+
+  const InitializationSettings initSettings =
+      InitializationSettings(android: androidSettings);
+
+  await flutterLocalNotificationsPlugin.initialize(initSettings);
+
+  // تشغيل WorkManager فقط على Android
+  if (!kIsWeb) {
+    await Workmanager().initialize(callbackDispatcher, isInDebugMode: false);
+    await Workmanager().registerPeriodicTask(
+      "weeklyPrayerTask",
+      "scheduleWeeklyPrayerNotification",
+      frequency: const Duration(hours: 24),
+      initialDelay: const Duration(seconds: 10),
+    );
+  }
+  
+  await scheduleWeeklyNotification();
+
   runApp(const MyApp());
 }
 
@@ -21,6 +159,9 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     _loadSettings();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      requestNotificationPermission();
+    });
   }
 
   Future<void> _loadSettings() async {
@@ -40,9 +181,8 @@ class _MyAppState extends State<MyApp> {
 
   void toggleTheme() {
     setState(() {
-      _themeMode = _themeMode == ThemeMode.dark
-          ? ThemeMode.light
-          : ThemeMode.dark;
+      _themeMode =
+          _themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
       _saveSettings();
     });
   }
@@ -119,228 +259,130 @@ class PrepPage extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const SizedBox(height: 20),
-                TweenAnimationBuilder<double>(
-                  tween: Tween<double>(begin: 0, end: 1),
-                  duration: const Duration(milliseconds: 800),
-                  builder: (context, value, child) {
-                    return Transform.translate(
-                      offset: Offset(0, 30 * (1 - value)),
-                      child: Opacity(
-                        opacity: value,
-                        child: Column(
-                          children: [
-                            Text(
-                              "خدمة",
-                              style: TextStyle(
-                                fontSize: 56,
-                                fontWeight: FontWeight.w300,
-                                color: isDark ? Colors.white70 : Colors.black54,
-                                letterSpacing: 2,
+                Column(
+                  children: [
+                    Text(
+                      "خدمة",
+                      style: TextStyle(
+                        fontSize: 56,
+                        fontWeight: FontWeight.w300,
+                        color: isDark ? Colors.white70 : Colors.black54,
+                        letterSpacing: 2,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      "اعدادي",
+                      style: TextStyle(
+                        fontSize: 48,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : Colors.black,
+                        shadows: [
+                          Shadow(
+                            blurRadius: 20,
+                            color: isDark
+                                ? Colors.white24
+                                : Colors.blue.shade200,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 60),
+                Column(
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(25),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.blue.withOpacity(0.4),
+                            blurRadius: 20,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
+                      ),
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 18),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(25),
+                          ),
+                          elevation: 0,
+                        ),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => PrayerTimeSelectionPage(
+                                isDark: isDark,
+                                fontSize: fontSize,
+                                updateFontSize: updateFontSize,
                               ),
                             ),
-                            const SizedBox(height: 10),
+                          );
+                        },
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.play_arrow, size: 28),
+                            SizedBox(width: 12),
                             Text(
-                              "اعدادي",
+                              "ابدأ الصلاة",
                               style: TextStyle(
-                                fontSize: 48,
+                                fontSize: 22,
                                 fontWeight: FontWeight.bold,
-                                color: isDark ? Colors.white : Colors.black,
-                                shadows: [
-                                  Shadow(
-                                    blurRadius: 20,
-                                    color: isDark
-                                        ? Colors.white24
-                                        : Colors.blue.shade200,
-                                  ),
-                                ],
                               ),
                             ),
                           ],
                         ),
                       ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 60),
-                Column(
-                  children: [
-                    TweenAnimationBuilder<double>(
-                      tween: Tween<double>(begin: 0, end: 1),
-                      duration: const Duration(milliseconds: 800),
-                      builder: (context, value, child) {
-                        return Transform.translate(
-                          offset: Offset(0, 50 * (1 - value)),
-                          child: Opacity(
-                            opacity: value,
-                            child: Container(
-                              width: double.infinity,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(25),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.blue.withOpacity(0.4),
-                                    blurRadius: 20,
-                                    offset: const Offset(0, 10),
-                                  ),
-                                ],
-                              ),
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.blue,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 18,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(25),
-                                  ),
-                                  elevation: 0,
-                                ),
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    PageRouteBuilder(
-                                      pageBuilder:
-                                          (
-                                            context,
-                                            animation,
-                                            secondaryAnimation,
-                                          ) => PrayerTimeSelectionPage(
-                                            isDark: isDark,
-                                            fontSize: fontSize,
-                                            updateFontSize: updateFontSize,
-                                          ),
-                                      transitionsBuilder:
-                                          (
-                                            context,
-                                            animation,
-                                            secondaryAnimation,
-                                            child,
-                                          ) {
-                                            const begin = Offset(1.0, 0.0);
-                                            const end = Offset.zero;
-                                            const curve = Curves.easeInOutCubic;
-                                            var tween = Tween(
-                                              begin: begin,
-                                              end: end,
-                                            ).chain(CurveTween(curve: curve));
-                                            return SlideTransition(
-                                              position: animation.drive(tween),
-                                              child: child,
-                                            );
-                                          },
-                                      transitionDuration: const Duration(
-                                        milliseconds: 500,
-                                      ),
-                                    ),
-                                  );
-                                },
-                                child: const Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(Icons.play_arrow, size: 28),
-                                    SizedBox(width: 12),
-                                    Text(
-                                      "ابدأ الصلاة",
-                                      style: TextStyle(
-                                        fontSize: 22,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      },
                     ),
                     const SizedBox(height: 20),
-                    TweenAnimationBuilder<double>(
-                      tween: Tween<double>(begin: 0, end: 1),
-                      duration: const Duration(milliseconds: 800),
-                      builder: (context, value, child) {
-                        return Transform.translate(
-                          offset: Offset(0, 70 * (1 - value)),
-                          child: Opacity(
-                            opacity: value,
-                            child: Container(
-                              width: double.infinity,
-                              child: OutlinedButton.icon(
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: isDark
-                                      ? Colors.white
-                                      : Colors.black,
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 18,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(25),
-                                  ),
-                                  side: BorderSide(
-                                    color: isDark
-                                        ? Colors.white24
-                                        : Colors.black26,
-                                    width: 1.5,
-                                  ),
-                                ),
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    PageRouteBuilder(
-                                      pageBuilder:
-                                          (
-                                            context,
-                                            animation,
-                                            secondaryAnimation,
-                                          ) => SettingsPage(
-                                            isDark: isDark,
-                                            fontSize: fontSize,
-                                            toggleTheme: toggleTheme,
-                                            updateFontSize: updateFontSize,
-                                          ),
-                                      transitionsBuilder:
-                                          (
-                                            context,
-                                            animation,
-                                            secondaryAnimation,
-                                            child,
-                                          ) {
-                                            const begin = Offset(0.0, 1.0);
-                                            const end = Offset.zero;
-                                            const curve = Curves.easeInOutCubic;
-                                            var tween = Tween(
-                                              begin: begin,
-                                              end: end,
-                                            ).chain(CurveTween(curve: curve));
-                                            return SlideTransition(
-                                              position: animation.drive(tween),
-                                              child: child,
-                                            );
-                                          },
-                                      transitionDuration: const Duration(
-                                        milliseconds: 500,
-                                      ),
-                                    ),
-                                  );
-                                },
-                                icon: Icon(
-                                  Icons.settings_outlined,
-                                  size: 26,
-                                  color: Colors.blue,
-                                ),
-                                label: const Text(
-                                  "الإعدادات",
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
+                    Container(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: isDark ? Colors.white : Colors.black,
+                          padding: const EdgeInsets.symmetric(vertical: 18),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(25),
+                          ),
+                          side: BorderSide(
+                            color: isDark ? Colors.white24 : Colors.black26,
+                            width: 1.5,
+                          ),
+                        ),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => SettingsPage(
+                                isDark: isDark,
+                                fontSize: fontSize,
+                                toggleTheme: toggleTheme,
+                                updateFontSize: updateFontSize,
                               ),
                             ),
+                          );
+                        },
+                        icon: Icon(
+                          Icons.settings_outlined,
+                          size: 26,
+                          color: Colors.blue,
+                        ),
+                        label: const Text(
+                          "الإعدادات",
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w600,
                           ),
-                        );
-                      },
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -373,23 +415,17 @@ class PrayerTimeSelectionPage extends StatelessWidget {
     final List<Map<String, dynamic>> prayerTimes = [
       {
         'title': 'صلاة باكر',
-        'subtitle': '',
         'icon': Icons.wb_sunny,
-        'color': Colors.blue,
         'description': '',
       },
       {
         'title': 'صلاة الغروب',
-        'subtitle': '',
         'icon': Icons.wb_twighlight,
-        'color': Colors.blue,
         'description': 'صلاة الساعة الحادية عشر',
       },
       {
         'title': 'صلاة النوم',
-        'subtitle': '',
         'icon': Icons.nightlight_round,
-        'color': Colors.blue,
         'description': 'صلاة الساعة الثانية عشر',
       },
     ];
@@ -413,23 +449,20 @@ class PrayerTimeSelectionPage extends StatelessWidget {
                     ),
                   ),
                   const Spacer(),
-                  MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    child: GestureDetector(
-                      onTap: () {
-                        Navigator.pop(context);
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: isDark ? Colors.grey[800] : Colors.grey[100],
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                        child: Icon(
-                          Icons.arrow_forward_ios,
-                          color: Colors.blue,
-                          size: 20,
-                        ),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.pop(context);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.grey[800] : Colors.grey[100],
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      child: Icon(
+                        Icons.arrow_forward_ios,
+                        color: Colors.blue,
+                        size: 20,
                       ),
                     ),
                   ),
@@ -444,151 +477,99 @@ class PrayerTimeSelectionPage extends StatelessWidget {
                   itemCount: prayerTimes.length,
                   itemBuilder: (context, index) {
                     final prayer = prayerTimes[index];
-                    return TweenAnimationBuilder<double>(
-                      tween: Tween<double>(begin: 0, end: 1),
-                      duration: Duration(milliseconds: 500 + (index * 100)),
-                      builder: (context, value, child) {
-                        return Transform.translate(
-                          offset: Offset(50 * (1 - value), 0),
-                          child: Opacity(
-                            opacity: value,
-                            child: Container(
-                              margin: const EdgeInsets.only(bottom: 20),
-                              child: Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(25),
-                                  onTap: () {
-                                    Navigator.push(
-                                      context,
-                                      PageRouteBuilder(
-                                        pageBuilder:
-                                            (
-                                              context,
-                                              animation,
-                                              secondaryAnimation,
-                                            ) => PrayerPage(
-                                              isDark: isDark,
-                                              fontSize: fontSize,
-                                              updateFontSize: updateFontSize,
-                                              prayerTime: prayer['title'],
-                                            ),
-                                        transitionsBuilder:
-                                            (
-                                              context,
-                                              animation,
-                                              secondaryAnimation,
-                                              child,
-                                            ) {
-                                              const begin = Offset(1.0, 0.0);
-                                              const end = Offset.zero;
-                                              const curve =
-                                                  Curves.easeInOutCubic;
-                                              var tween = Tween(
-                                                begin: begin,
-                                                end: end,
-                                              ).chain(CurveTween(curve: curve));
-                                              return SlideTransition(
-                                                position: animation.drive(
-                                                  tween,
-                                                ),
-                                                child: child,
-                                              );
-                                            },
-                                        transitionDuration: const Duration(
-                                          milliseconds: 500,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  child: Container(
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 20),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(25),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => PrayerPage(
+                                  isDark: isDark,
+                                  fontSize: fontSize,
+                                  updateFontSize: updateFontSize,
+                                  prayerTime: prayer['title'].toString(),
+                                ),
+                              ),
+                            );
+                          },
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: isDark
+                                    ? [Colors.grey[900]!, Colors.grey[850]!]
+                                    : [Colors.white, Colors.grey[50]!],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(25),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: isDark ? Colors.white10 : Colors.black12,
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 5),
+                                ),
+                              ],
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(15),
                                     decoration: BoxDecoration(
                                       gradient: LinearGradient(
-                                        colors: isDark
-                                            ? [
-                                                Colors.grey[900]!,
-                                                Colors.grey[850]!,
-                                              ]
-                                            : [Colors.white, Colors.grey[50]!],
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
+                                        colors: [
+                                          Colors.blue.withOpacity(0.2),
+                                          Colors.blue.withOpacity(0.1),
+                                        ],
                                       ),
-                                      borderRadius: BorderRadius.circular(25),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: isDark
-                                              ? Colors.white10
-                                              : Colors.black12,
-                                          blurRadius: 10,
-                                          offset: const Offset(0, 5),
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Icon(
+                                      prayer['icon'] as IconData,
+                                      color: Colors.blue,
+                                      size: 40,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 20),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          prayer['title'] as String,
+                                          style: TextStyle(
+                                            fontSize: 22,
+                                            fontWeight: FontWeight.bold,
+                                            color: textColor,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 5),
+                                        Text(
+                                          prayer['description'] as String,
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: textColor.withOpacity(0.6),
+                                          ),
                                         ),
                                       ],
                                     ),
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(20),
-                                      child: Row(
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.all(15),
-                                            decoration: BoxDecoration(
-                                              gradient: LinearGradient(
-                                                colors: [
-                                                  (prayer['color'] as Color)
-                                                      .withOpacity(0.2),
-                                                  (prayer['color'] as Color)
-                                                      .withOpacity(0.1),
-                                                ],
-                                              ),
-                                              borderRadius:
-                                                  BorderRadius.circular(20),
-                                            ),
-                                            child: Icon(
-                                              prayer['icon'],
-                                              color: Colors.blue,
-                                              size: 40,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 20),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  prayer['title'],
-                                                  style: TextStyle(
-                                                    fontSize: 22,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: textColor,
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 5),
-                                                Text(
-                                                  prayer['description'],
-                                                  style: TextStyle(
-                                                    fontSize: 14,
-                                                    color: textColor
-                                                        .withOpacity(0.6),
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          Icon(
-                                            Icons.arrow_forward_ios,
-                                            color: Colors.blue.withOpacity(0.7),
-                                            size: 20,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
                                   ),
-                                ),
+                                  Icon(
+                                    Icons.arrow_forward_ios,
+                                    color: Colors.blue.withOpacity(0.7),
+                                    size: 20,
+                                  ),
+                                ],
                               ),
                             ),
                           ),
-                        );
-                      },
+                        ),
+                      ),
                     );
                   },
                 ),
@@ -649,25 +630,20 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                   ),
                   const Spacer(),
-                  MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    child: GestureDetector(
-                      onTap: () {
-                        Navigator.pop(context);
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: widget.isDark
-                              ? Colors.grey[800]
-                              : Colors.grey[100],
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                        child: Icon(
-                          Icons.arrow_forward_ios,
-                          color: Colors.blue,
-                          size: 20,
-                        ),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.pop(context);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: widget.isDark ? Colors.grey[800] : Colors.grey[100],
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      child: Icon(
+                        Icons.arrow_forward_ios,
+                        color: Colors.blue,
+                        size: 20,
                       ),
                     ),
                   ),
@@ -691,9 +667,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         borderRadius: BorderRadius.circular(25),
                         boxShadow: [
                           BoxShadow(
-                            color: widget.isDark
-                                ? Colors.white10
-                                : Colors.black12,
+                            color: widget.isDark ? Colors.white10 : Colors.black12,
                             blurRadius: 10,
                             offset: const Offset(0, 5),
                           ),
@@ -714,15 +688,11 @@ class _SettingsPageState extends State<SettingsPage> {
                                 Container(
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
-                                    color: widget.isDark
-                                        ? Colors.grey[800]
-                                        : Colors.grey[200],
+                                    color: widget.isDark ? Colors.grey[800] : Colors.grey[200],
                                     borderRadius: BorderRadius.circular(15),
                                   ),
                                   child: Icon(
-                                    widget.isDark
-                                        ? Icons.dark_mode
-                                        : Icons.light_mode,
+                                    widget.isDark ? Icons.dark_mode : Icons.light_mode,
                                     color: Colors.blue,
                                     size: 28,
                                   ),
@@ -730,29 +700,22 @@ class _SettingsPageState extends State<SettingsPage> {
                                 const SizedBox(width: 16),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         "المظهر",
                                         style: TextStyle(
                                           fontSize: 18,
                                           fontWeight: FontWeight.w600,
-                                          color: widget.isDark
-                                              ? Colors.white
-                                              : Colors.black,
+                                          color: widget.isDark ? Colors.white : Colors.black,
                                         ),
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
-                                        widget.isDark
-                                            ? "الوضع الليلي"
-                                            : "الوضع النهاري",
+                                        widget.isDark ? "الوضع الليلي" : "الوضع النهاري",
                                         style: TextStyle(
                                           fontSize: 14,
-                                          color: widget.isDark
-                                              ? Colors.white70
-                                              : Colors.black54,
+                                          color: widget.isDark ? Colors.white70 : Colors.black54,
                                         ),
                                       ),
                                     ],
@@ -785,9 +748,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         borderRadius: BorderRadius.circular(25),
                         boxShadow: [
                           BoxShadow(
-                            color: widget.isDark
-                                ? Colors.white10
-                                : Colors.black12,
+                            color: widget.isDark ? Colors.white10 : Colors.black12,
                             blurRadius: 10,
                             offset: const Offset(0, 5),
                           ),
@@ -803,9 +764,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                 Container(
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
-                                    color: widget.isDark
-                                        ? Colors.grey[800]
-                                        : Colors.grey[200],
+                                    color: widget.isDark ? Colors.grey[800] : Colors.grey[200],
                                     borderRadius: BorderRadius.circular(15),
                                   ),
                                   child: Icon(
@@ -817,17 +776,14 @@ class _SettingsPageState extends State<SettingsPage> {
                                 const SizedBox(width: 16),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         "حجم الخط",
                                         style: TextStyle(
                                           fontSize: 18,
                                           fontWeight: FontWeight.w600,
-                                          color: widget.isDark
-                                              ? Colors.white
-                                              : Colors.black,
+                                          color: widget.isDark ? Colors.white : Colors.black,
                                         ),
                                       ),
                                       const SizedBox(height: 4),
@@ -835,9 +791,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                         "تحكم في حجم الخط داخل التطبيق",
                                         style: TextStyle(
                                           fontSize: 14,
-                                          color: widget.isDark
-                                              ? Colors.white70
-                                              : Colors.black54,
+                                          color: widget.isDark ? Colors.white70 : Colors.black54,
                                         ),
                                       ),
                                     ],
@@ -882,9 +836,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             Container(
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: widget.isDark
-                                    ? Colors.grey[800]
-                                    : Colors.grey[100],
+                                color: widget.isDark ? Colors.grey[800] : Colors.grey[100],
                                 borderRadius: BorderRadius.circular(20),
                                 border: Border.all(
                                   color: Colors.blue.withOpacity(0.3),
@@ -907,9 +859,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
                                       fontSize: _currentFontSize * 0.6,
-                                      color: widget.isDark
-                                          ? Colors.white
-                                          : Colors.black,
+                                      color: widget.isDark ? Colors.white : Colors.black,
                                       fontWeight: FontWeight.w500,
                                       height: 1.5,
                                     ),
@@ -932,24 +882,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 }
 
-class PrayerPage extends StatefulWidget {
-  final bool isDark;
-  final double fontSize;
-  final Function(double) updateFontSize;
-  final String prayerTime;
-
-  const PrayerPage({
-    super.key,
-    required this.isDark,
-    required this.fontSize,
-    required this.updateFontSize,
-    required this.prayerTime,
-  });
-
-  @override
-  State<PrayerPage> createState() => _PrayerPageState();
-}
-
+// ✅ صفحة الصلاة المبسطة - كل صلاة تحتوي على نص واحد فقط
 class _PrayerPageState extends State<PrayerPage>
     with SingleTickerProviderStateMixin {
   late PageController _pageController;
@@ -960,11 +893,6 @@ class _PrayerPageState extends State<PrayerPage>
   late Animation<Offset> _slideAnimation;
 
   final List<Map<String, String>> bakrPrayers = [
-    {
-      'title': 'الصلاة الربانية',
-      'body':
-          'بِسْم الآب والابنْ والروح القُدُس، الإلَه الوَاحِد، آمين. (كيريى لَيْسُون) يَارَبُّ ارْحَمْ. يَارَبُّ ارْحَمْ. يَارَبُّ بارِكْ. آمين. المجدُ للآبِ والابنِ والروحِ القُدسِ الآنَ وكلَّ أوانِ وإِلَى دهرِ الدهورِ. آمين. اللَّهُم اجْعلنا مُستحِقين أنْ نقولَ بِشكرٍ: أبانا الذي في السَّمَواتِ، لِيتَقدس اسْمكَ. ليأتِ مَلكوتُكَ. لتَكن مَشيئَتُكَ، كما في السّماءِ كَذلك على الأرْضِ. خُبزَنا الذي للغدِ اعطِنا اليومَ. واغفِر لنا ذنوبَنا كما نغْفر نحنُ أيضّا للمذنبينَ إلينا. ولا تُدخِلنا في تَجرِبةٍ. لكن نجّنا مِنْ الشّريرِ. بالمسيحِ يسوعُ ربُّنا، لأنَّ لَكَ المُلكَ والقوةَ والمجدَ إلى الأبدِ. آمين.',
-    },
     {
       'title': 'صلاة الشكر',
       'body':
@@ -1173,11 +1101,6 @@ class _PrayerPageState extends State<PrayerPage>
 
   final List<Map<String, String>> arbonPrayers = [
     {
-      'title': 'الصلاة الربانية',
-      'body':
-          'بِسْم الآب والابنْ والروح القُدُس، الإلَه الوَاحِد، آمين. (كيريى لَيْسُون) يَارَبُّ ارْحَمْ. يَارَبُّ ارْحَمْ. يَارَبُّ بارِكْ. آمين. المجدُ للآبِ والابنِ والروحِ القُدسِ الآنَ وكلَّ أوانِ وإِلَى دهرِ الدهورِ. آمين. اللَّهُم اجْعلنا مُستحِقين أنْ نقولَ بِشكرٍ: أبانا الذي في السَّمَواتِ، لِيتَقدس اسْمكَ. ليأتِ مَلكوتُكَ. لتَكن مَشيئَتُكَ، كما في السّماءِ كَذلك على الأرْضِ. خُبزَنا الذي للغدِ اعطِنا اليومَ. واغفِر لنا ذنوبَنا كما نغْفر نحنُ أيضّا للمذنبينَ إلينا. ولا تُدخِلنا في تَجرِبةٍ. لكن نجّنا مِنْ الشّريرِ. بالمسيحِ يسوعُ ربُّنا، لأنَّ لَكَ المُلكَ والقوةَ والمجدَ إلى الأبدِ. آمين.',
-    },
-    {
       'title': 'صلاة الشكر',
       'body':
           'فَلْنشْكُرّ صَانِعَ الخَيراتِ الرَّحُومَ الله أبَا رَبِّنَا وإلهِنَا ومُخَلِصَنا يَسُوعِ المسِيحِ. لأنَّهُ سَتَرنَا، وأعَانَنَا، وحَفِظَنا، وقَبِلَنا إليهِ، وأشْفَقَ عَلينَا، وعَضَّدنَا، وأَتَى بنا إلى هَذِهِ السَّاعَة. هُو أيْضاً فَلْنَسْأَلَهُ أنْ يَحْفَظَنا فى هَذَا اليَومِ المقَدَّسِ وكُلِّ أيَّامِ حَيَاتنَا بكلِّ سَلامِ. الضَّابِطُ الكُلّ الرَّبُ إلَهنَا. أيُّهَا السَّيِدُ الرَّبُّ الإلَه ضَابطُ الكُلِّ أبُو ربِّنَا وإلهنَا ومُخَلصَّنَا يَسُوعِ المسِيح نَشْكرُكَ عَلَى كُلِّ حالٍ، ومِنْ أجْل كلِّ حَالٍ، وفى كُلِّ حالٍ، لأنَّكَ سَترْتَنا، وأعَنْتَنا، وحفِظْتنَا، وقَبلْتنَا إليْكَ، وأشْفَقْت عَلينا، وعَضَّدْتَنَا، وأتَيتَ بِنَا إلىَ هَذِه السَّاعةِ. من أجْلِ هَذَا نَسْألُ ونَطْلبُ مِنْ صَلاحِكَ يَامُحبَّ البَشَر، امْنَحنَا أنْ نُكْملَ هذا اليَوْمَ المقَدَّسَ وكلّ أيَّامِ حَياتِنَا بِكلِّ سَلامٍ مَعَ خَوفِكَ، كُلُّ حَسَدٍ، وكلُّ تَجربَةٍ. وكلُّ فِعْلِ الشَّيْطانِ، ومُؤامَرةِ النَّاسِ الأشْرارِ، وقِيام الأعْدَاءِ الخَفيِّينَ والظَّاهِرينَ، إنْزَعهَا عنَّا وعَنْ سَائِرِ شَعْبكَ وعَنْ مَوضِعِكَ المقَدَّسِ هَذا. أمَّاَ الصَّالِحاتُ والنَّافعاتُ فَارزُقْنا إيَّاهَا. لأنَّكَ أنْتَ الذِى أعْطَيتَنا السُّلْطانَ أنْ ندوسَ الحَيَّاتِ والعَقارِبَ وكُلَّ قوَّةِ العَدوِّ. ولا تُدْخِلنَا فى تَجربَةٍ، لَكنْ نَجِّنا مِنَ الشِّرِّيرِ. بالنِّعْمةِ والرَّأْفَاتِ ومَحبَّة البَشرِ اللَّواتِى لإبْنِك الوَحيدِ ربِّنا وإلهِنَا ومُخلِّصِنا يَسُوعِ المسيحِ. هَذَا الذِى مِنْ قِبَلِه الَمجْدُ والإكْرام والعزَّةُ والسُّجودُ تَلِيقُ بكَ مَعهُ مَعُ الرُّوحِ القُدُسِ الَمحْيى المسَاوِى لَكَ الآنَ وكلَّ أوَانٍ وإلىَ دَهرِ الدُّهُورِ. آمين.',
@@ -1299,11 +1222,6 @@ class _PrayerPageState extends State<PrayerPage>
   ];
 
   final List<Map<String, String>> nomPrayers = [
-    {
-      'title': 'الصلاة الربانية',
-      'body':
-          'بِسْم الآب والابنْ والروح القُدُس، الإلَه الوَاحِد، آمين. (كيريى لَيْسُون) يَارَبُّ ارْحَمْ. يَارَبُّ ارْحَمْ. يَارَبُّ بارِكْ. آمين. المجدُ للآبِ والابنِ والروحِ القُدسِ الآنَ وكلَّ أوانِ وإِلَى دهرِ الدهورِ. آمين. اللَّهُم اجْعلنا مُستحِقين أنْ نقولَ بِشكرٍ: أبانا الذي في السَّمَواتِ، لِيتَقدس اسْمكَ. ليأتِ مَلكوتُكَ. لتَكن مَشيئَتُكَ، كما في السّماءِ كَذلك على الأرْضِ. خُبزَنا الذي للغدِ اعطِنا اليومَ. واغفِر لنا ذنوبَنا كما نغْفر نحنُ أيضّا للمذنبينَ إلينا. ولا تُدخِلنا في تَجرِبةٍ. لكن نجّنا مِنْ الشّريرِ. بالمسيحِ يسوعُ ربُّنا، لأنَّ لَكَ المُلكَ والقوةَ والمجدَ إلى الأبدِ. آمين.',
-    },
     {
       'title': 'صلاة الشكر',
       'body':
@@ -1458,403 +1376,65 @@ class _PrayerPageState extends State<PrayerPage>
   late List<Map<String, String>> currentPrayers;
 
   @override
-  void initState() {
-    super.initState();
-    switch (widget.prayerTime) {
-      case 'صلاة باكر':
-        currentPrayers = bakrPrayers;
-        break;
-      case 'صلاة الغروب':
-        currentPrayers = arbonPrayers;
-        break;
-      case 'صلاة النوم':
-        currentPrayers = nomPrayers;
-        break;
-      default:
-        currentPrayers = bakrPrayers;
-    }
-    _pageController = PageController();
-    _slideController = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-    _slideAnimation =
-        Tween<Offset>(begin: const Offset(0, -1), end: Offset.zero).animate(
-          CurvedAnimation(parent: _slideController, curve: Curves.easeInOut),
-        );
-  }
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    _slideController.dispose();
-    super.dispose();
-  }
-
-  void _toggleList() {
-    setState(() {
-      _showList = !_showList;
-      if (_showList) {
-        _slideController.forward();
-      } else {
-        _slideController.reverse();
-      }
-    });
-  }
-
-  void _selectPrayer(int index) {
-    setState(() {
-      currentIndex = index;
-      _toggleList();
-    });
-    _pageController.animateToPage(
-      index,
-      duration: const Duration(milliseconds: 500),
-      curve: Curves.easeInOutCubic,
-    );
-  }
-
-  void _nextPage() {
-    if (currentIndex < currentPrayers.length - 1) {
-      _pageController.nextPage(
-        duration: const Duration(milliseconds: 400),
-        curve: Curves.easeInOutCubic,
-      );
-    }
-  }
-
-  void _previousPage() {
-    if (currentIndex > 0) {
-      _pageController.previousPage(
-        duration: const Duration(milliseconds: 400),
-        curve: Curves.easeInOutCubic,
-      );
-    }
-  }
-
-  void _handleKey(KeyEvent event) {
-    if (event is KeyDownEvent) {
-      if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-        _nextPage();
-      } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
-        _previousPage();
-      }
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final textColor = widget.isDark ? Colors.white : Colors.black;
-    final bgColor = widget.isDark ? Colors.black : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final bgColor = isDark ? Colors.black : Colors.white;
 
     return Scaffold(
       backgroundColor: bgColor,
-      body: KeyboardListener(
-        focusNode: _focusNode,
-        autofocus: true,
-        onKeyEvent: _handleKey,
-        child: SafeArea(
-          child: Stack(
-            children: [
-              Column(
+      body: SafeArea(
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 16,
-                    ),
-                    child: Row(
-                      children: [
-                        const Spacer(),
-                        Text(
-                          widget.prayerTime,
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: textColor,
-                          ),
-                        ),
-                        const Spacer(),
-                        MouseRegion(
-                          cursor: SystemMouseCursors.click,
-                          child: GestureDetector(
-                            onTap: () => Navigator.pop(context),
-                            child: Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: widget.isDark
-                                    ? Colors.grey[800]
-                                    : Colors.grey[200],
-                                borderRadius: BorderRadius.circular(15),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: widget.isDark
-                                        ? Colors.white10
-                                        : Colors.black12,
-                                    blurRadius: 5,
-                                  ),
-                                ],
-                              ),
-                              child: Icon(
-                                Icons.arrow_forward_ios,
-                                color: Colors.blue,
-                                size: 20,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                  const Spacer(),
+                  Text(
+                    prayerTime,
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: textColor,
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 16,
-                    ),
-                    child: GestureDetector(
-                      onTap: _toggleList,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color: widget.isDark
-                              ? Colors.grey[850]
-                              : Colors.grey[100],
-                          borderRadius: BorderRadius.circular(30),
-                          boxShadow: [
-                            BoxShadow(
-                              color: widget.isDark
-                                  ? Colors.white10
-                                  : Colors.black12,
-                              blurRadius: 10,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                currentPrayers[currentIndex]['title']!,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: textColor,
-                                  fontSize: widget.fontSize * 0.7,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1,
-                                ),
-                              ),
-                            ),
-                            Icon(
-                              _showList
-                                  ? Icons.arrow_drop_up
-                                  : Icons.arrow_drop_down,
-                              color: Colors.blue,
-                              size: 28,
-                            ),
-                          ],
-                        ),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.grey[800] : Colors.grey[200],
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      child: Icon(
+                        Icons.arrow_forward_ios,
+                        color: Colors.blue,
+                        size: 20,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 10),
-                  Expanded(
-                    child: PageView.builder(
-                      controller: _pageController,
-                      reverse: true,
-                      itemCount: currentPrayers.length,
-                      onPageChanged: (index) {
-                        setState(() {
-                          currentIndex = index;
-                        });
-                      },
-                      itemBuilder: (context, index) {
-                        final prayer = currentPrayers[index];
-                        return SingleChildScrollView(
-                          physics: const BouncingScrollPhysics(),
-                          padding: const EdgeInsets.all(24),
-                          child: TweenAnimationBuilder<double>(
-                            key: ValueKey(currentIndex),
-                            tween: Tween<double>(begin: 0, end: 1),
-                            duration: const Duration(milliseconds: 500),
-                            curve: Curves.easeOutCubic,
-                            builder: (context, value, child) {
-                              return Transform.translate(
-                                offset: Offset(0, 20 * (1 - value)),
-                                child: Opacity(
-                                  opacity: value,
-                                  child: Text(
-                                    prayer['body']!,
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: textColor,
-                                      fontSize: widget.fontSize,
-                                      height: 1.8,
-                                      letterSpacing: 0.8,
-                                      fontWeight: FontWeight.w400,
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 20),
                 ],
               ),
-              if (_showList)
-                GestureDetector(
-                  onTap: _toggleList,
-                  child: Container(
-                    color: Colors.black54,
-                    child: Center(
-                      child: SlideTransition(
-                        position: _slideAnimation,
-                        child: Material(
-                          color: Colors.transparent,
-                          child: Container(
-                            margin: const EdgeInsets.symmetric(
-                              horizontal: 40,
-                              vertical: 80,
-                            ),
-                            decoration: BoxDecoration(
-                              color: widget.isDark
-                                  ? Colors.grey[900]
-                                  : Colors.white,
-                              borderRadius: BorderRadius.circular(25),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black26,
-                                  blurRadius: 20,
-                                  offset: const Offset(0, 10),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(20),
-                                  decoration: BoxDecoration(
-                                    color: widget.isDark
-                                        ? Colors.grey[800]
-                                        : Colors.grey[100],
-                                    borderRadius: const BorderRadius.only(
-                                      topLeft: Radius.circular(25),
-                                      topRight: Radius.circular(25),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.menu_book,
-                                        color: Colors.blue,
-                                        size: 28,
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Text(
-                                        "قائمة الصلوات",
-                                        style: TextStyle(
-                                          fontSize: 20,
-                                          fontWeight: FontWeight.bold,
-                                          color: textColor,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Expanded(
-                                  child: ListView.builder(
-                                    itemCount: currentPrayers.length,
-                                    itemBuilder: (context, index) {
-                                      final isSelected = currentIndex == index;
-                                      return InkWell(
-                                        onTap: () => _selectPrayer(index),
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 20,
-                                            vertical: 16,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: isSelected
-                                                ? (widget.isDark
-                                                      ? Colors.blue.withOpacity(
-                                                          0.2,
-                                                        )
-                                                      : Colors.blue.shade50)
-                                                : null,
-                                            border: Border(
-                                              bottom: BorderSide(
-                                                color: widget.isDark
-                                                    ? Colors.grey[800]!
-                                                    : Colors.grey[200]!,
-                                              ),
-                                            ),
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              if (isSelected)
-                                                Icon(
-                                                  Icons.check_circle,
-                                                  color: Colors.blue,
-                                                  size: 20,
-                                                )
-                                              else
-                                                const SizedBox(width: 20),
-                                              const SizedBox(width: 12),
-                                              Expanded(
-                                                child: Text(
-                                                  currentPrayers[index]['title']!,
-                                                  style: TextStyle(
-                                                    fontSize: 16,
-                                                    color: textColor,
-                                                    fontWeight: isSelected
-                                                        ? FontWeight.bold
-                                                        : FontWeight.normal,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.all(16),
-                                  child: ElevatedButton(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.blue,
-                                      foregroundColor: Colors.white,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(15),
-                                      ),
-                                    ),
-                                    onPressed: _toggleList,
-                                    child: const Text(
-                                      "إغلاق",
-                                      style: TextStyle(fontSize: 16),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 10),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  _getPrayerBody(),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: fontSize,
+                    height: 1.8,
+                    letterSpacing: 0.8,
+                    fontWeight: FontWeight.w400,
                   ),
                 ),
-            ],
-          ),
+              ),
+            ),
+          ],
         ),
       ),
     );
